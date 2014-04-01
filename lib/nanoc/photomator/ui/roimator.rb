@@ -1,3 +1,5 @@
+require 'nanoc/photomator/io'
+
 module Nanoc
   module Photomator
     class ROIMator < Qt::Widget
@@ -6,57 +8,54 @@ module Nanoc
       slots 'next()'
       slots 'updateROI(QRectF)'
 
-      def initialize parent = nil, path
+      def initialize(parent = nil, path)
         super parent
 
         @id = -1
-        @path = path
 
-        unless File.directory?(@path) and load_data
+        # check data
+        unless File.directory?(path) and load_data(path)
+          puts "No photos found at #{path}!"
           exit(0)
         end
-        init_ui
 
+        # init user interface
+        init_ui
         resize 800, 600
         move 300, 300
 
-        preview next_item
-
+        # bind events
         connect(@interactor, SIGNAL('onUpdateROI(QRectF)'), self, SLOT('updateROI(QRectF)'))
         connect(@nextButton, SIGNAL('clicked()'), self, SLOT('next()'))
         connect(@prevButton, SIGNAL('clicked()'), self, SLOT('prev()'))
 
+        # preview next item
+        preview next_item
         show
       end
 
       private
 
-      def updateROI roi
+      include Nanoc::Photomator::IO
 
-        metadata = YAML.load(@metaedit.plainText)
-        metadata['ROI'] = {'x' => roi.x, 'y' => roi.y, 'w' => roi.width, 'h' => roi.height}
-
-        File.open(metadata_path(@items[@id]), 'w') { |file| file.write(metadata.to_yaml.gsub(%r{\A---\n}, '')) }
-
-        preview @items[@id]
-      end
-
-      def preview item
-        metadata = {}
-
-        if File.exists? metadata_path item
-          metadata = (YAML::load_file metadata_path item) || {}
-          @metaedit.setPlainText metadata.to_yaml.gsub(%r{\A---\n}, '')
+      def load_data(path)
+        @items = all_photos_and_metafile_at(path).map do |meta_filename, photo_filename|
+          { :meta_filename => meta_filename, :photo_filename => photo_filename }
         end
 
-        roi = {'x' => 0.0, 'y' => 0.0, 'w' => 1.0, 'h' => 1.0}.update(metadata['ROI'] || {})
-
-        @interactor.preview image_path(item), roi
+        not @items.empty?
       end
 
-      def load_data
-        @items = Dir.entries(@path).select { |f| File.extname(f) == '.jpg' }.map { |f| File.basename(f, '.*') }
-        not @items.empty?
+      def preview(item)
+        meta = meta_from(item[:meta_filename])
+        unless meta.empty?
+          puts meta
+          @meta_edit.setPlainText meta_as_string(meta)
+        end
+
+        roi = {'x' => 0.0, 'y' => 0.0, 'w' => 1.0, 'h' => 1.0}.update(meta['ROI'] || {})
+
+        @interactor.preview item[:photo_filename], roi
       end
 
       def has_prev
@@ -84,6 +83,10 @@ module Nanoc
         @items.length - 1 > @id
       end
 
+      def current_item
+        @items[@id]
+      end
+
       def next_item
         if has_next
           @id += 1
@@ -101,12 +104,16 @@ module Nanoc
         end
       end
 
-      def image_path item
-        File.join(@path, item) + '.jpg'
-      end
+      def updateROI(roi)
+        # get meta from edit
+        meta = YAML.load(@meta_edit.plainText)
+        meta['ROI'] = {'x' => roi.x, 'y' => roi.y, 'w' => roi.width, 'h' => roi.height}
 
-      def metadata_path item
-        File.join(@path, item) + '.yaml'
+        # save it to file
+        save_meta_at(current_item[:meta_filename], meta)
+
+        #update ui
+        @meta_edit.setPlainText meta_as_string(meta)
       end
 
       def init_ui
@@ -116,8 +123,8 @@ module Nanoc
         @interactor = ImageInteractorContainer.new self
         vbox.addWidget @interactor
 
-        @metaedit = Qt::TextEdit.new self
-        vbox.addWidget @metaedit
+        @meta_edit = Qt::TextEdit.new self
+        vbox.addWidget @meta_edit
 
         hbox = Qt::HBoxLayout.new self
         @nextButton = Qt::PushButton.new 'next >'

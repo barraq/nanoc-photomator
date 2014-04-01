@@ -8,7 +8,7 @@ module Nanoc
 
       signals 'onScaleToFit()'
 
-      def initialize parent
+      def initialize(parent)
         super parent
       end
 
@@ -16,7 +16,7 @@ module Nanoc
         emit onScaleToFit
       end
 
-      def paintEvent event
+      def paintEvent(event)
         painter = Qt::Painter.new self
         drawWidget painter
         painter.end
@@ -24,7 +24,7 @@ module Nanoc
 
       private
 
-      def drawWidget painter
+      def drawWidget(painter)
         painter.setRenderHint Qt::Painter::Antialiasing
 
         fg = Qt::Color.new 150, 150, 150
@@ -43,10 +43,9 @@ module Nanoc
     # Image interactor widget.
     class ImageInteractorWidget < Qt::Label
 
-      #signals 'onRegionSelected(float, float, float, float)'
       signals 'onRegionSelected(QRectF)'
 
-      def initialize parent = nil
+      def initialize(parent)
         super parent
 
         @move = false
@@ -58,22 +57,22 @@ module Nanoc
         setScaledContents true
       end
 
-      def setROI x, y, width, height
+      def setROI(x, y, width, height)
         @roi = Qt::RectF.new x, y, width, height
         update
       end
 
-      def mousePressEvent event
+      def mousePressEvent(event)
         @start = event.pos
       end
 
-      def mouseMoveEvent event
+      def mouseMoveEvent(event)
         @move = true
         @current = event.pos
         update
       end
 
-      def mouseReleaseEvent event
+      def mouseReleaseEvent(event)
         @move = false
         @stop = event.pos
 
@@ -87,16 +86,16 @@ module Nanoc
         emit onRegionSelected(@roi)
       end
 
-      def paintEvent event
+      def paintEvent(event)
         super
-        painter = Qt::Painter.new self
+        painter = Qt::Painter.new(self)
         drawROI painter
         painter.end
       end
 
       private
 
-      def drawROI painter
+      def drawROI(painter)
         painter.setRenderHint Qt::Painter::Antialiasing
 
         fg = Qt::Color.new 150, 150, 150
@@ -125,7 +124,7 @@ module Nanoc
       slots 'selectRegion(QRectF)'
       signals 'onUpdateROI(QRectF)'
 
-      def initialize parent = nil
+      def initialize(parent)
         super parent
 
         @imageInteractor = ImageInteractorWidget.new self
@@ -142,7 +141,7 @@ module Nanoc
         connect(@imageInteractor, SIGNAL('onRegionSelected(QRectF)'), self, SLOT('selectRegion(QRectF)'))
       end
 
-      def preview image_path, roi={}
+      def preview(image_path, roi={})
         @imageInteractor.setPixmap Qt::Pixmap.new image_path
         @imageInteractor.resize @imageInteractor.pixmap.size * 0.3
         @imageInteractor.setROI roi['x']||0.0, roi['y']||0.0, roi['w']||1.0, roi['h']||1.0
@@ -155,8 +154,8 @@ module Nanoc
         @imageInteractor.resize @imageInteractor.pixmap.size * factor
       end
 
-      def selectRegion roi
-        emit onUpdateROI roi
+      def selectRegion(roi)
+        emit onUpdateROI(roi)
       end
     end
   end
